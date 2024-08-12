@@ -9,7 +9,7 @@ def Fhalf(x):
     y = np.sum(fx)
     return y
 
-def fig41_and_41a():
+def fig52():
     # Constants (all MKS, except energy which is in eV)
     hbar = 1.06e-34
     q = 1.6e-19
@@ -43,6 +43,7 @@ def fig41_and_41a():
     NE = 301
     E = np.linspace(-0.25, 0.5, NE)
     dE = E[1] - E[0]
+    print(f"dE = {dE}")
     zplus = 1j * 1e-12
     f0 = n0 * np.log(1 + np.exp((mu - E) / kT))
 
@@ -52,13 +53,14 @@ def fig41_and_41a():
     # Voltage bias steps
     NV = 5
     VV = np.linspace(0, 0.25, NV)
+    dV = VV[1] - VV[0]
+    Fn = mu * np.ones(Np)
     UU = np.zeros((Np, NV))
     J = np.zeros((Np, NV))
 
     for kV in range(NV):
         V = VV[kV]
         print(f"V = {V}")
-        Fn = np.concatenate([mu*np.ones(Ns), (mu-0.5*V)*np.ones(Nc), (mu-V)*np.ones(Ns)])
         f1 = n0 * np.log(1 + np.exp((mu - E) / kT))
         f2 = n0 * np.log(1 + np.exp((mu - V - E) / kT))
 
@@ -68,7 +70,16 @@ def fig41_and_41a():
             sig2 = np.zeros((Np, Np), dtype=complex)
             rho = np.zeros((Np, Np), dtype=complex)
 
+            sigs = -1j * 0.0125 * np.concatenate([np.zeros(Ns), np.ones(Nc), np.zeros(Ns)])
+            sigs = np.diag(sigs)
+            gams = 1j * (sigs - sigs.conj().T)
+            gams = np.diag(np.diag(gams))
+
             for k in range(NE):
+                fs = n0 * np.log(1 + np.exp((Fn - E[k]) / kT))
+                sigin = fs * gams
+                sigin = np.diag(np.diag(sigin))
+
                 ck = 1 - ((E[k] + zplus - U[0]) / (2 * t))
                 ka = np.arccos(ck)
                 sig1[0, 0] = -t * np.exp(1j * ka)
@@ -79,10 +90,11 @@ def fig41_and_41a():
                 sig2[-1, -1] = -t * np.exp(1j * ka)
                 gam2 = 1j * (sig2 - sig2.conj().T)
 
-                G = linalg.inv((E[k] + zplus) * np.eye(Np) - T - np.diag(U) - sig1 - sig2)
+                G = linalg.inv((E[k] + zplus) * np.eye(Np) - T - np.diag(U) - sig1 - sig2 - sigs)
                 A1 = G.conj().T @ gam1 @ G
                 A2 = G.conj().T @ gam2 @ G
-                rho += (dE * (f1[k] * A1 + f2[k] * A2) / (2 * np.pi))
+
+                rho += (dE * (f1[k] * A1 + f2[k] * A2 + G.conj().T @ sigin @ G) / (2 * np.pi))
 
             n = (1 / a) * np.real(np.diag(rho))
 
@@ -101,69 +113,26 @@ def fig41_and_41a():
             print(f"in_val = {in_val}")
 
         UU[:, kV] = U
-        J[:, kV] = -0.5 * q * np.diag(rho @ Jop + Jop @ rho)
+        J[:, kV] = -0.5 * q * np.diag((rho @ Jop) + (Jop @ rho))
+        Fn += np.concatenate([np.zeros(Ns), np.linspace(0, -dV, Nc), -dV * np.ones(Ns)])
 
     II = np.sum(J, axis=0)
+    Fn -= np.concatenate([np.zeros(Ns), np.linspace(0, -dV, Nc), -dV * np.ones(Ns)])
 
-    # Plotting fig41
+    # Plotting
     plt.figure()
-    plt.plot(VV, II)
-    plt.xlabel('Voltage (V)')
-    plt.ylabel('Current (A)')
-    plt.title('I-V Characteristic')
-    plt.grid(True)
-
-    # fig41a calculations
-    V = VV[-1]
-    U = UU[:, -1]
-
-    f1 = n0 * np.log(1 + np.exp((mu - E) / kT))
-    f2 = n0 * np.log(1 + np.exp((mu - V - E) / kT))
-
-    J1 = np.zeros(NE)
-    J2 = np.zeros(NE)
-    J3 = np.zeros(NE)
-    trans = np.zeros(NE)
-
-    for k in range(NE):
-        ck = 1 - ((E[k] + zplus - U[0]) / (2 * t))
-        ka = np.arccos(ck)
-        sig1[0, 0] = -t * np.exp(1j * ka)
-        gam1 = 1j * (sig1 - sig1.conj().T)
-
-        ck = 1 - ((E[k] + zplus - U[-1]) / (2 * t))
-        ka = np.arccos(ck)
-        sig2[-1, -1] = -t * np.exp(1j * ka)
-        gam2 = 1j * (sig2 - sig2.conj().T)
-
-        G = linalg.inv((E[k] + zplus) * np.eye(Np) - T - np.diag(U) - sig1 - sig2)
-        A1 = G.conj().T @ gam1 @ G
-        A2 = G.conj().T @ gam2 @ G
-        rhoE = ((f1[k] * A1) + (f2[k] * A2)) / (2 * np.pi)
-        JJ = (-0.5 * q) * np.diag((rhoE @ Jop) + (Jop @ rhoE))
-        J1[k] = np.sum(JJ)
-
-        trans[k] = np.real(np.trace(gam1 @ A2))
-        J2[k] = (q * q / (2 * np.pi * hbar)) * trans[k] * (f1[k] - f2[k])
-
-        trans[k] = np.real(np.trace(gam2 @ A1))
-        J3[k] = (q * q / (2 * np.pi * hbar)) * trans[k] * (f1[k] - f2[k])
-        print(J1[k])
-        print(J2[k])
-        print(J3[k])
-    # Plotting fig41a
-    plt.figure()
-    plt.plot(J1, E, label='J1')
-    plt.plot(J2, E, 'x', label='J2')
-    plt.plot(J3, E, '+', label='J3')
-    plt.xlabel('Current')
-    plt.ylabel('Energy (eV)')
-    plt.title('Current vs Energy')
-    plt.legend()
+    plt.plot(XX, J[:, -1])
+    plt.xlabel('Position (nm)')
+    plt.ylabel('Current Density (A/m²)')
+    plt.title('Current Density vs Position')
     plt.grid(True)
     plt.show()
 
-    return VV, II, J1, J2, J3, E
+    # Uncomment these lines if you want to plot Fn or UU
+    # plt.plot(XX, Fn)
+    # plt.plot(XX, UU[:, -1])
 
-# Run the combined function
-VV, II, J1, J2, J3, E = fig41_and_41a()
+    return VV, II, XX, J, Fn, UU
+
+# Run the function
+VV, II, XX, J, Fn, UU = fig52()
