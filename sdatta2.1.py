@@ -55,12 +55,12 @@ J = np.zeros((Np, NV))
 
 for kV in range(NV):
     V = VV[kV]
-    Fn = np.concatenate((mu * np.ones(Ns), (mu - 0.5 * V) * np.ones(Nc), (mu - V) * np.ones(Ns)))
+    Fn = np.concatenate([mu * np.ones(Ns), (mu - 0.5 * V) * np.ones(Nc), (mu - V) * np.ones(Ns)])
     f1 = n0 * np.log(1 + np.exp((mu - E) / kT))
     f2 = n0 * np.log(1 + np.exp((mu - V - E) / kT))
 
     convergence = 10
-    while convergence > 5:
+    while convergence > 0.01:
         sig1 = np.zeros((Np, Np), dtype=complex)
         sig2 = np.zeros((Np, Np), dtype=complex)
         rho = np.zeros((Np, Np), dtype=complex)
@@ -69,16 +69,16 @@ for kV in range(NV):
             ck1 = 1 - (E[k] + zplus - U[0]) / (2 * t)
             ka1 = np.arccos(ck1)
             sig1[0, 0] = -t * np.exp(1j * ka1)
-            gam1 = 1j * (sig1 - np.conj(sig1.T))
+            gam1 = 1j * (sig1 - sig1.conj().T)
 
             ck2 = 1 - (E[k] + zplus - U[-1]) / (2 * t)
             ka2 = np.arccos(ck2)
             sig2[-1, -1] = -t * np.exp(1j * ka2)
-            gam2 = 1j * (sig2 - np.conj(sig2.T))
+            gam2 = 1j * (sig2 - sig2.conj().T)
 
             G = np.linalg.inv((E[k] + zplus) * np.eye(Np) - T - np.diag(U) - sig1 - sig2)
-            A1 = np.conj(G.T) @ gam1 @ G
-            A2 = np.conj(G.T) @ gam2 @ G
+            A1 = G.conj().T @ gam1 @ G
+            A2 = G.conj().T @ gam2 @ G
             rho += dE * ((f1[k] * A1 + f2[k] * A2) / (2 * np.pi))
 
         n = (1 / a) * np.real(np.diag(rho))
@@ -87,7 +87,7 @@ for kV in range(NV):
         D = np.zeros(Np)
         for k in range(Np):
             z = (Fn[k] - U[k]) / kT
-            D[k] = 2 * ((n0 / 2)**1.5) * ((np.exp(z + 0.1) - np.exp(z)) / 0.1) / kT
+            D[k] = 2 * ((n0 / 2)**1.5) * ((Fhalf(z + 0.1) - Fhalf(z)) / 0.1) / kT
 
         dN = n - Nd + (1 / beta) * D2 @ U
         dU = -beta * np.linalg.inv(D2 - beta * np.diag(D)) @ dN
